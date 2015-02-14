@@ -1,0 +1,21 @@
+### https://raw.github.com/github/gitignore/608690d6b9a78c2a003affc792e49a84905b3118/scala.gitignore
+
+*.class
+*.log
+
+# sbt specific
+.cache
+.history
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+
+
