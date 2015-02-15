@@ -4,23 +4,30 @@ import scala.annotation.tailrec
 import scala.util.Random
 
 case class Simulator(
-                      ruinPointDrawDown: Double,
-                      accuracy: Double, payoffRatio: Double,
-                      management: RiskManagement) {
+    config: SimulatorConfig,
+    metrics: TradeMetrics,
+    management: RiskManager) {
 
-  def run(): Double = {
+  def singleRun(): Double = {
     val accountStart = 1
     @tailrec
     def loop(history: AccountHistory): Double = {
-      if (drawDown(history.equityCurve) >= ruinPointDrawDown) {
+      if (drawDown(history.equityCurve) >= config.ruinDrawDown) {
         ruinProb(history)
-      } else if (history.equityCurve.last > 200000000 || history.tradeResults.size >= 10000) {
+      } else if (history.tradeResults.size >= config.enoughTrades) {
         0
       } else {
-        loop(history :+ trade(management.risked(accountStart, history.balance)))
+        val newResult = trade(metrics, management.risked(accountStart, history.balance))
+        loop(history :+ newResult)
       }
     }
     loop(AccountHistory(accountStart))
+  }
+
+  def run(n: Int): Double = {
+    require(n > 0)
+    val probs = (0 until n).map(_ => singleRun())
+    probs.sum / probs.size
   }
 
   def drawDown(curve: IndexedSeq[Double]): Double = {
@@ -36,8 +43,8 @@ case class Simulator(
     nLose.toDouble / nTradesFromHigh
   }
 
-  def trade(risked: Double): Double = {
+  def trade(metrics: TradeMetrics, risked: Double): Double = {
     val rnd = Random.nextDouble()
-    if (rnd >= 1 - accuracy) risked * payoffRatio else -risked
+    if (rnd >= 1 - metrics.accuracy) risked * metrics.payoffRatio else -risked
   }
 }
