@@ -1,20 +1,26 @@
 package hasan
 
+import java.util.concurrent.ThreadLocalRandom
+
+import com.typesafe.scalalogging.StrictLogging
+
 import scala.annotation.tailrec
-import scala.util.Random
 
 case class Simulator(
     config: SimulatorConfig,
     metrics: TradeMetrics,
-    management: RiskManager) {
+    management: RiskManager) extends StrictLogging {
 
   def singleRun(): Double = {
     val accountStart = 1
     @tailrec
     def loop(history: AccountHistory): Double = {
       if (drawDown(history.equityCurve) >= config.ruinDrawDown) {
-        ruinProb(history)
+        val p = ruinProb(history)
+        logger.info(f"Ruined $p%.4f")
+        p
       } else if (history.tradeResults.size >= config.enoughTrades) {
+        logger.info("No ruin")
         0
       } else {
         val newResult = trade(metrics, management.risked(accountStart, history.balance))
@@ -26,7 +32,7 @@ case class Simulator(
 
   def run(n: Int): Double = {
     require(n > 0)
-    val probs = (0 until n).map(_ => singleRun())
+    val probs = (0 until n).par.map(_ => singleRun())
     probs.sum / probs.size
   }
 
@@ -40,11 +46,12 @@ case class Simulator(
     val nTradesFromHigh = history.equityCurve.size - highIdx - 1
     val tradesFromHigh = history.tradeResults.takeRight(nTradesFromHigh)
     val nLose = tradesFromHigh.count(_ < 0)
+    logger.debug(s"highIdx $highIdx nTradesFromHigh $nTradesFromHigh nLose $nLose")
     nLose.toDouble / nTradesFromHigh
   }
 
   def trade(metrics: TradeMetrics, risked: Double): Double = {
-    val rnd = Random.nextDouble()
+    val rnd = ThreadLocalRandom.current().nextDouble()
     if (rnd >= 1 - metrics.accuracy) risked * metrics.payoffRatio else -risked
   }
 }
